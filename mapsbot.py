@@ -5,6 +5,7 @@ import os
 import json
 import ast
 import datetime
+import asyncio
 #from discord.ext import commands
 from discord import app_commands
 from discord.ext import tasks
@@ -16,6 +17,14 @@ intents = discord.Intents.default()
 intents.message_content = True
 
 server_ids = list(json.loads(os.getenv("SERVER_IDS")))
+modmail_channel_id = int(os.getenv("MODMAIL_CHANNEL"))
+modmail_inbox_id = int(os.getenv("MODMAIL_INBOX"))
+modmail_color = int(os.getenv("MODMAIL_COLOR"),16)
+map_spotlight_request_channel_id = int(os.getenv("MAP_SPOTLIGHT_REQUEST_CHANNEL"))
+map_spotlight_request_inbox_id = int(os.getenv("MAP_SPOTLIGHT_REQUEST_INBOX"))
+playlist_spotlight_request_channel_id = int(os.getenv("PLAYLIST_SPOTLIGHT_REQUEST_CHANNEL"))
+playlist_spotlight_request_inbox_id = int(os.getenv("PLAYLIST_SPOTLIGHT_REQUEST_INBOX"))
+spotlight_color = int(os.getenv("SPOTLIGHT_COLOR"),16)
 
 class MapsBot(discord.Client):
     def __init__(self, *, intents: discord.Intents):
@@ -51,6 +60,85 @@ async def shutdown(interaction):
 async def on_ready():
     print(f'We have logged in as {bot.user}')
 
+@bot.event
+async def on_message(message):
+    for channel_id, callback in channel_callbacks.items():
+        if message.channel.id == channel_id:
+            await callback(message)
+
+async def map_spotlight_request(message):
+    await map_spotlight_request_process(message.content,message.author,message.created_at)
+    await message.delete()
+
+async def map_spotlight_request_process(message:str, user, timestamp):
+    print(f"Map spotlight request: {message} || From: {user.display_name} (ID: {user.id})")
+    
+    map_spotlight_request_inbox_channel = bot.get_channel(map_spotlight_request_inbox_id)
+    
+    embed = discord.Embed(
+        title = f"Map spotlight request",
+        color = spotlight_color,
+        timestamp = timestamp,
+        description = message,        
+    )
+    
+    embed.set_author(name=f"{user.name} ({user.id})")
+    embed.add_field(name="User", value=user.mention, inline=True)
+    
+    await send_in_channel(map_spotlight_request_inbox_channel,embeds=[embed])
+    await send_dm(user,mention_channel = None, mention_instead = False, content = f"The following map spotlight request has been submitted.", embeds=[embed])
+
+async def playlist_spotlight_request(message):
+    await playlist_spotlight_request_process(message.content,message.author,message.created_at)
+    await message.delete()
+
+async def playlist_spotlight_request_process(message:str, user, timestamp):
+    print(f"Playlist spotlight request: {message} || From: {user.display_name} (ID: {user.id})")
+    
+    playlist_spotlight_request_inbox_channel = bot.get_channel(playlist_spotlight_request_inbox_id)
+    
+    embed = discord.Embed(
+        title = f"Playlist spotlight request",
+        color = spotlight_color,
+        timestamp = timestamp,
+        description = message,        
+    )
+    
+    embed.set_author(name=f"{user.name} ({user.id})")
+    embed.add_field(name="User", value=user.mention, inline=True)
+
+    await send_in_channel(playlist_spotlight_request_inbox_channel,embeds=[embed])
+    await send_dm(user,mention_channel = None, mention_instead = False, content = f"The following playlist spotlight request has been submitted.", embeds=[embed])
+
+async def modmail_channel(message):
+    await modmail_process(message.content, message.author, message.channel, message.created_at)
+    await message.delete()
+
+@bot.tree.command(description="Request moderator action privately. Use only for serious matters.")
+async def modmail(interaction, message:str):
+    await interaction.response.defer(ephemeral=True)
+    await modmail_process(message, interaction.user, interaction.channel, interaction.created_at)
+    await send_response(interaction,dm=False,mention_instead=False,content=f"Moderators have received your request: '{message}'. Thank you.")
+
+async def modmail_process(message:str, user, channel, timestamp):
+    print(f"Modmail: {message} || From: {user.display_name} (ID: {user.id}) || In: #{channel.name}")
+    
+    modmail_inbox_channel = bot.get_channel(modmail_inbox_id)
+    
+    embed = discord.Embed(
+        title = f"Modmail",
+        color = modmail_color,
+        timestamp = timestamp,
+        description = message,
+        #url=interaction.channel.jump_url        
+    )
+    
+    embed.set_author(name=f"{user.name} ({user.id})")
+    embed.add_field(name="User", value=user.mention, inline=True)
+    embed.add_field(name="Channel", value=channel.mention, inline=True)
+
+    await send_in_channel(modmail_inbox_channel,embeds=[embed])
+    
 
 # The mention_instead parameter is used in the case of a failed DM message to send the response on the interaction channel with a mention. If it's False and the DM fails, the message is simply not sent.
 async def send_response(interaction, dm=False, mention_instead=False, content = None, **kwargs):
@@ -73,7 +161,16 @@ async def send_dm(user, mention_channel, mention_instead=False, content = None, 
                 print(f'Message to user {user.name} could not be sent through direct message.')
         else:
             print(f'Message to user {user.name} could not be sent through direct message.')
-            
+    
+async def send_in_channel(channel, content = None, embeds = None, **kwargs):
+    await channel.send(content=content,embeds = embeds, **kwargs)
+    
+channel_callbacks = {
+    modmail_channel_id: modmail_channel,
+    map_spotlight_request_channel_id: map_spotlight_request,
+    playlist_spotlight_request_channel_id: playlist_spotlight_request,    
+}
+
 token = os.getenv("DISCORD_TOKEN")
 
 bot.run(token)
