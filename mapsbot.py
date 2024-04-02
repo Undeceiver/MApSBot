@@ -8,6 +8,7 @@ import datetime
 import asyncio
 #from discord.ext import commands
 from discord import app_commands
+from discord.enums import ButtonStyle
 from discord.ext import tasks
 from dotenv import load_dotenv
 
@@ -25,6 +26,9 @@ map_spotlight_request_inbox_id = int(os.getenv("MAP_SPOTLIGHT_REQUEST_INBOX"))
 playlist_spotlight_request_channel_id = int(os.getenv("PLAYLIST_SPOTLIGHT_REQUEST_CHANNEL"))
 playlist_spotlight_request_inbox_id = int(os.getenv("PLAYLIST_SPOTLIGHT_REQUEST_INBOX"))
 spotlight_color = int(os.getenv("SPOTLIGHT_COLOR"),16)
+role_request_channel_id = int(os.getenv("ROLE_REQUEST_CHANNEL"))
+role_request_inbox_id = int(os.getenv("ROLE_REQUEST_INBOX"))
+role_request_color = int(os.getenv("ROLE_REQUEST_COLOR"),16)
 
 class MapsBot(discord.Client):
     def __init__(self, *, intents: discord.Intents):
@@ -65,6 +69,28 @@ async def on_message(message):
     for channel_id, callback in channel_callbacks.items():
         if message.channel.id == channel_id:
             await callback(message)
+
+async def role_request(message):
+    await role_request_process(message.content,message.author,message.created_at)
+    await message.delete()
+
+async def role_request_process(message:str, user, timestamp):
+    print(f"Role request: {message} || From: {user.display_name} (ID: {user.id})")
+    
+    role_request_inbox_channel = bot.get_channel(role_request_inbox_id)
+    
+    embed = discord.Embed(
+        title = f"Role request",
+        color = role_request_color,
+        timestamp = timestamp,
+        description = message,        
+    )
+    
+    embed.set_author(name=f"{user.name} ({user.id})")
+    embed.add_field(name="User", value=user.mention, inline=True)
+    
+    await send_in_channel(role_request_inbox_channel,embeds=[embed])
+    await send_dm(user,mention_channel = None, mention_instead = False, content = f"Roles requested.", embeds=[embed])
 
 async def map_spotlight_request(message):
     await map_spotlight_request_process(message.content,message.author,message.created_at)
@@ -138,7 +164,6 @@ async def modmail_process(message:str, user, channel, timestamp):
     embed.add_field(name="Channel", value=channel.mention, inline=True)
 
     await send_in_channel(modmail_inbox_channel,embeds=[embed])
-    
 
 # The mention_instead parameter is used in the case of a failed DM message to send the response on the interaction channel with a mention. If it's False and the DM fails, the message is simply not sent.
 async def send_response(interaction, dm=False, mention_instead=False, content = None, **kwargs):
@@ -168,7 +193,8 @@ async def send_in_channel(channel, content = None, embeds = None, **kwargs):
 channel_callbacks = {
     modmail_channel_id: modmail_channel,
     map_spotlight_request_channel_id: map_spotlight_request,
-    playlist_spotlight_request_channel_id: playlist_spotlight_request,    
+    playlist_spotlight_request_channel_id: playlist_spotlight_request,
+    role_request_channel_id: role_request,
 }
 
 token = os.getenv("DISCORD_TOKEN")
