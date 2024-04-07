@@ -18,6 +18,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 
 server_ids = list(json.loads(os.getenv("SERVER_IDS")))
+bot_id = int(os.getenv("BOT_ID"))
 modmail_channel_id = int(os.getenv("MODMAIL_CHANNEL"))
 modmail_inbox_id = int(os.getenv("MODMAIL_INBOX"))
 modmail_color = int(os.getenv("MODMAIL_COLOR"),16)
@@ -66,9 +67,12 @@ async def on_ready():
 
 @bot.event
 async def on_message(message):
-    for channel_id, callback in channel_callbacks.items():
-        if message.channel.id == channel_id:
-            await callback(message)
+    if message.author.id != bot_id:
+        for channel_id, callback in channel_callbacks.items():
+            if message.channel.id == channel_id:
+                await callback(message)
+    #else:
+        #print(f"Ignoring self-message: {message.content}")
 
 async def role_request(message):
     await role_request_process(message.content,message.author,message.created_at)
