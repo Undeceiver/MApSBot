@@ -6,6 +6,7 @@ import json
 import ast
 import datetime
 import asyncio
+import sys
 #from discord.ext import commands
 from discord import app_commands
 from discord.enums import ButtonStyle
@@ -58,12 +59,12 @@ bot = MapsBot(intents=intents)
 @app_commands.checks.has_permissions(administrator=True)
 async def shutdown(interaction):
     await interaction.response.send_message('Shutting down... Bye!',ephemeral=True)
-    print('Received shutdown command. Shutting down.')
+    botlog('Received shutdown command. Shutting down.')
     exit()
     
 @bot.event
 async def on_ready():
-    print(f'We have logged in as {bot.user}')
+    botlog(f'We have logged in as {bot.user}')
 
 @bot.event
 async def on_message(message):
@@ -72,14 +73,14 @@ async def on_message(message):
             if message.channel.id == channel_id:
                 await callback(message)
     #else:
-        #print(f"Ignoring self-message: {message.content}")
+        #botlog(f"Ignoring self-message: {message.content}")
 
 async def role_request(message):
     await role_request_process(message.content,message.author,message.created_at)
     await message.delete()
 
 async def role_request_process(message:str, user, timestamp):
-    print(f"Role request: {message} || From: {user.display_name} (ID: {user.id})")
+    botlog(f"Role request: {message} || From: {user.display_name} (ID: {user.id})")
     
     role_request_inbox_channel = bot.get_channel(role_request_inbox_id)
     
@@ -101,7 +102,7 @@ async def map_spotlight_request(message):
     await message.delete()
 
 async def map_spotlight_request_process(message:str, user, timestamp):
-    print(f"Map spotlight request: {message} || From: {user.display_name} (ID: {user.id})")
+    botlog(f"Map spotlight request: {message} || From: {user.display_name} (ID: {user.id})")
     
     map_spotlight_request_inbox_channel = bot.get_channel(map_spotlight_request_inbox_id)
     
@@ -123,7 +124,7 @@ async def playlist_spotlight_request(message):
     await message.delete()
 
 async def playlist_spotlight_request_process(message:str, user, timestamp):
-    print(f"Playlist spotlight request: {message} || From: {user.display_name} (ID: {user.id})")
+    botlog(f"Playlist spotlight request: {message} || From: {user.display_name} (ID: {user.id})")
     
     playlist_spotlight_request_inbox_channel = bot.get_channel(playlist_spotlight_request_inbox_id)
     
@@ -151,7 +152,7 @@ async def modmail(interaction, message:str):
     await send_response(interaction,dm=False,mention_instead=False,content=f"Moderators have received your request: '{message}'. Thank you.")
 
 async def modmail_process(message:str, user, channel, timestamp):
-    print(f"Modmail: {message} || From: {user.display_name} (ID: {user.id}) || In: #{channel.name}")
+    botlog(f"Modmail: {message} || From: {user.display_name} (ID: {user.id}) || In: #{channel.name}")
     
     modmail_inbox_channel = bot.get_channel(modmail_inbox_id)
     
@@ -187,12 +188,19 @@ async def send_dm(user, mention_channel, mention_instead=False, content = None, 
                 full_content = f'{user.mention} (DM could not be sent)\n\n{content}'
                 await mention_channel.send(content=full_content, **kwargs)
             else:
-                print(f'Message to user {user.name} could not be sent through direct message.')
+                botlog(f'Message to user {user.name} could not be sent through direct message.')
         else:
-            print(f'Message to user {user.name} could not be sent through direct message.')
+            botlog(f'Message to user {user.name} could not be sent through direct message.')
     
 async def send_in_channel(channel, content = None, embeds = None, **kwargs):
     await channel.send(content=content,embeds = embeds, **kwargs)
+
+def botlog(str):
+    time = datetime.datetime.now()
+    
+    print(f"[{time}] {str}")
+    sys.stdout.flush()
+    
     
 channel_callbacks = {
     modmail_channel_id: modmail_channel,
