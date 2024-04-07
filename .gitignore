@@ -123,6 +123,7 @@ celerybeat.pid
 #.env
 #.venv
 test.env
+deploy.env
 env/
 venv/
 ENV/
@@ -163,3 +164,5 @@ cython_debug/
 
 # Visual Studio
 .vs/
+
+log.txt
