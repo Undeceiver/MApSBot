@@ -1,5 +1,6 @@
 #!/usr/bin/env python3.9
 
+from http import server
 import discord
 import os
 import json
@@ -20,6 +21,10 @@ intents.message_content = True
 
 server_ids = list(json.loads(os.getenv("SERVER_IDS")))
 bot_id = int(os.getenv("BOT_ID"))
+rule_channel_id = int(os.getenv("RULE_CHANNEL_ID"))
+rule_post_id = int(os.getenv("RULE_POST_ID"))
+rule_reaction_id = int(os.getenv("RULE_REACTION_ID"))
+appreciator_role_id = int(os.getenv("APPRECIATOR_ROLE_ID"))
 modmail_channel_id = int(os.getenv("MODMAIL_CHANNEL"))
 modmail_inbox_id = int(os.getenv("MODMAIL_INBOX"))
 modmail_color = int(os.getenv("MODMAIL_COLOR"),16)
@@ -32,10 +37,11 @@ role_request_channel_id = int(os.getenv("ROLE_REQUEST_CHANNEL"))
 role_request_inbox_id = int(os.getenv("ROLE_REQUEST_INBOX"))
 role_request_color = int(os.getenv("ROLE_REQUEST_COLOR"),16)
 
-class MapsBot(discord.Client):
+class MapsBot(discord.Client):   
     def __init__(self, *, intents: discord.Intents):
         super().__init__(intents=intents)
         self.tree = app_commands.CommandTree(self)
+        self.server_obj = None
 
     
     async def setup_hook(self):
@@ -47,6 +53,11 @@ class MapsBot(discord.Client):
             await self.tree.sync(guild=server)
 
         # archivetestplays_task.start()
+
+        # We consider the first server in the list to be The server and thus the one where new things will be generated.
+        server_id = server_ids[0]
+        self.server_obj = await bot.fetch_guild(server_id)
+        await self.server_obj.fetch_roles()
 
         return
     
@@ -74,6 +85,25 @@ async def on_message(message):
                 await callback(message)
     #else:
         #botlog(f"Ignoring self-message: {message.content}")
+           
+@bot.event
+async def on_raw_reaction_add(payload):
+    #botlog(f"DEBUG: raw reaction added")
+    if payload.message_id == rule_post_id and payload.emoji.id == rule_reaction_id:
+        user = await bot.server_obj.fetch_member(payload.user_id)
+        channel = await bot.server_obj.fetch_channel(rule_channel_id)
+        message = await channel.fetch_message(rule_post_id)
+        if not isinstance(user,discord.Member):
+            botlog(f"Non-member tried to obtain Appreciator role: {user.name} (ID: {user.id})")
+            await send_dm(user,mention_channel=None,mention_instead=False,
+                          content=f"There was an error assigning you the Appreciator role, as you don't appear to be a member of the server. This has been recorded, but feel free to reach out to Undeceiver if you do not understand the problem.")
+            return
+        else:
+            role = bot.server_obj.get_role(appreciator_role_id)
+            
+            await user.add_roles(role,reason="Reaction role")
+            await message.remove_reaction(payload.emoji,user)
+
 
 async def role_request(message):
     await role_request_process(message.content,message.author,message.created_at)
